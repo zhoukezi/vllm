@@ -433,13 +433,24 @@ class DashengAudioTransformer(nn.Module):
         x: torch.Tensor,
         x_length: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        # x: [B, F, T]
         x = self.front_end(x)
-        x = x.to(self.time_pos_embed.dtype)
+        print(f"After frontend shape: {x.shape}")
+        i = 1
+        idx = []
+        while i <= x.shape[-1]:
+            idx.append(i - 1)
+            i *= 5
+        print(idx)
+
+        print(f"After frontend: {x[:, ::16, idx]}")
         target_length_in_patches = self.target_length // 4
         x = x.unsqueeze(1)
         x = torch.permute(x, (0, 2, 1, 3))
         x = self.init_bn(x)
         x = torch.permute(x, (0, 2, 1, 3))
+        print(f"After bn shape: {x.shape}")
+        print(f"After bn: {x[:, 0, ::16, idx]}")
 
         x = self.patch_embed(x)
         t = x.shape[-1]
