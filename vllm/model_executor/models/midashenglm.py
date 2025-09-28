@@ -37,18 +37,27 @@ from vllm.attention.layer import MultiHeadAttention
 from vllm.config import VllmConfig
 from vllm.distributed import get_tensor_model_parallel_world_size
 from vllm.model_executor.layers.activation import get_act_fn
-from vllm.model_executor.layers.linear import (ColumnParallelLinear,
-                                               QKVParallelLinear,
-                                               RowParallelLinear)
+from vllm.model_executor.layers.linear import (
+    ColumnParallelLinear,
+    QKVParallelLinear,
+    RowParallelLinear,
+)
 from vllm.model_executor.layers.quantization import QuantizationConfig
 from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 from vllm.multimodal import MULTIMODAL_REGISTRY
-from vllm.multimodal.inputs import (MultiModalDataDict, MultiModalFieldConfig,
-                                    MultiModalKwargsItems)
+from vllm.multimodal.inputs import (
+    MultiModalDataDict,
+    MultiModalFieldConfig,
+    MultiModalKwargsItems,
+)
 from vllm.multimodal.parse import MultiModalDataItems, MultiModalDataParser
-from vllm.multimodal.processing import (BaseMultiModalProcessor,
-                                        BaseProcessingInfo, PromptReplacement,
-                                        PromptUpdate, PromptUpdateDetails)
+from vllm.multimodal.processing import (
+    BaseMultiModalProcessor,
+    BaseProcessingInfo,
+    PromptReplacement,
+    PromptUpdate,
+    PromptUpdateDetails,
+)
 from vllm.multimodal.profiling import BaseDummyInputsBuilder
 from vllm.sequence import IntermediateTensors
 from vllm.transformers_utils.configs.midashenglm import DashengConfig
@@ -706,12 +715,18 @@ class MiDashengLMModel(nn.Module, SupportsMultiModal, SupportsPP):
                 isinstance(tensor, torch.Tensor) for tensor in mm_input):
             raise ValueError(f"Incorrect type of {name} list. "
                              "All elements must be torch.Tensor.")
-        
+
         print(f"Validating and reshaping {name}")
         if isinstance(mm_input, list):
             print(f"{name}: {[x.shape for x in mm_input]}")
         else:
             print(f"{name}: {mm_input.shape}")
+        if name == "audio_length":
+            if isinstance(mm_input, list):
+                audio_length = torch.concat(mm_input).flatten()
+            else:
+                audio_length = mm_input.flatten()
+            print(f"Audio lengths: {audio_length.tolist()}")
 
         if isinstance(mm_input, torch.Tensor):
             return mm_input.reshape(-1, *mm_input.shape[2:])
@@ -763,11 +778,13 @@ class MiDashengLMModel(nn.Module, SupportsMultiModal, SupportsPP):
 
         audio_length_np = audio_length.cpu().numpy() if isinstance(
             audio_length, torch.Tensor) else audio_length
+        print(f"Audio lengths (output): {audio_length_np.tolist()}")
         audio_output_lengths = [
             max(1, calculate_mel_frames_dasheng(
                 int(length)))  # at least one frame
             for length in audio_length_np
         ]
+        print(f"No. audio tokens: {audio_output_lengths}")
         audio_output_lengths = torch.tensor(audio_output_lengths).to(
             audio_embeddings.device)
 
