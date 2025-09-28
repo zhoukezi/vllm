@@ -702,6 +702,17 @@ class MiDashengLMModel(nn.Module, SupportsMultiModal, SupportsPP):
         if not isinstance(mm_input, (torch.Tensor, list)):
             raise ValueError(f"Incorrect type of {name}. "
                              f"Got type: {type(mm_input)}")
+        if isinstance(mm_input, list) and not all(
+                isinstance(tensor, torch.Tensor) for tensor in mm_input):
+            raise ValueError(f"Incorrect type of {name} list. "
+                             "All elements must be torch.Tensor.")
+        
+        print(f"Validating and reshaping {name}")
+        if isinstance(mm_input, list):
+            print(f"{name}: {[x.shape for x in mm_input]}")
+        else:
+            print(f"{name}: {mm_input.shape}")
+
         if isinstance(mm_input, torch.Tensor):
             return mm_input.reshape(-1, *mm_input.shape[2:])
 
