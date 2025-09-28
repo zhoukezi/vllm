@@ -25,7 +25,7 @@
 import collections
 import collections.abc
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, Callable, Optional, TypedDict, Union, cast
+from typing import Any, Callable, Optional, Tuple, TypedDict, Union, cast
 
 import numpy as np
 import torch
@@ -749,7 +749,7 @@ class MiDashengLMModel(nn.Module, SupportsMultiModal, SupportsPP):
         )
 
     def _process_audio_input(
-            self, audio_input: MiDashengLMAudioInputs) -> torch.Tensor:
+            self, audio_input: MiDashengLMAudioInputs) -> Tuple[torch.Tensor, ...]:
         # Process audio through encoder and projector
         input_values = audio_input["input_values"]
         audio_length = audio_input["audio_length"]
