@@ -780,8 +780,11 @@ class MiDashengLMModel(nn.Module, SupportsMultiModal, SupportsPP):
         masked_audio_features = audio_embeddings[audio_feature_mask].view(
             -1, embed_dim)
 
-        return torch.split(masked_audio_features,
+        result = torch.split(masked_audio_features,
                            audio_output_lengths.tolist())
+        for r in result:
+            print(f"Processed audio embeddings shape: {r.shape}")
+        return result
 
     def get_language_model(self) -> torch.nn.Module:
         return self.decoder
