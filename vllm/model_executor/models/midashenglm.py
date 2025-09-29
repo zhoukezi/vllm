@@ -447,22 +447,11 @@ class DashengAudioTransformer(nn.Module):
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         # x: [B, F, T]
         x = self.front_end(x)
-        print(f"After frontend shape: {x.shape}")
-        i = 1
-        idx = []
-        while i <= x.shape[-1]:
-            idx.append(i - 1)
-            i *= 5
-        print(idx)
-
-        print(f"After frontend: {x[:, ::16, idx]}")
         target_length_in_patches = self.target_length // 4
         x = x.unsqueeze(1)
         x = torch.permute(x, (0, 2, 1, 3))
         x = self.init_bn(x)
         x = torch.permute(x, (0, 2, 1, 3))
-        print(f"After bn shape: {x.shape}")
-        print(f"After bn: {x[:, 0, ::16, idx]}")
 
         x = self.patch_embed(x)
         t = x.shape[-1]
@@ -780,18 +769,6 @@ class MiDashengLMModel(nn.Module, SupportsMultiModal, SupportsPP):
                 "All elements must be torch.Tensor."
             )
 
-        print(f"Validating and reshaping {name}")
-        if isinstance(mm_input, list):
-            print(f"{name}: {[x.shape for x in mm_input]}")
-        else:
-            print(f"{name}: {mm_input.shape}")
-        if name == "audio_length":
-            if isinstance(mm_input, list):
-                audio_length = torch.concat(mm_input).flatten()
-            else:
-                audio_length = mm_input.flatten()
-            print(f"Audio lengths: {audio_length.tolist()}")
-
         if isinstance(mm_input, torch.Tensor):
             return mm_input.reshape(-1, *mm_input.shape[2:])
 
@@ -855,14 +832,12 @@ class MiDashengLMModel(nn.Module, SupportsMultiModal, SupportsPP):
             if isinstance(audio_length, torch.Tensor)
             else audio_length
         )
-        print(f"Audio lengths (output): {audio_length_np.tolist()}")
         audio_output_lengths = [
             max(
                 1, calculate_mel_frames_dasheng(int(length))
             )  # at least one frame
             for length in audio_length_np
         ]
-        print(f"No. audio tokens: {audio_output_lengths}")
         audio_output_lengths = torch.tensor(audio_output_lengths).to(
             audio_embeddings.device
         )
