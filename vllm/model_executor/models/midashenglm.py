@@ -306,10 +306,17 @@ class DashengFrontend(nn.Module):
         super().__init__()
         self.config = config
 
-        spectrogram_window = torch.hann_window(self.config.win_length)
+        spectrogram_window = torch.hann_window(
+            self.config.win_length,
+            device="cpu",
+            dtype=torch.float32,
+        )
         self.register_buffer(
             "spectrogram_window",
-            spectrogram_window,
+            spectrogram_window.to(
+                device=torch.get_default_device(),
+                dtype=torch.get_default_dtype(),
+            ),
             persistent=False,
         )
         self.spectrogram_window: torch.Tensor
