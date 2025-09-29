@@ -33,7 +33,6 @@ import torch.nn as nn
 import torchaudio.functional as F
 from transformers import BatchFeature
 
-from vllm.attention.layer import MultiHeadAttention
 from vllm.config import VllmConfig
 from vllm.distributed import get_tensor_model_parallel_world_size
 from vllm.model_executor.layers.activation import get_act_fn
@@ -204,12 +203,6 @@ class DashengAttention(nn.Module):
             quant_config=quant_config,
             prefix=f"{prefix}.qkv",
         )
-        self.attn = MultiHeadAttention(
-            self.num_heads,
-            self.head_dim,
-            self.scale,
-            num_kv_heads=self.num_kv_heads,
-        )
         self.proj = RowParallelLinear(
             input_size=dim,
             output_size=dim,
@@ -221,15 +214,27 @@ class DashengAttention(nn.Module):
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
         B, N, C = x.shape
 
-        qkv_out, _ = self.qkv(x)
-        q, k, v = qkv_out.split([self.q_size, self.kv_size, self.kv_size],
-                                dim=-1)
+        qkv, _ = self.qkv(x)
+        qkv = qkv.reshape(B, N, 3, self.num_heads, C // self.num_heads)
+        qkv = qkv.permute(2, 0, 3, 1, 4)
+        q, k, v = qkv.unbind(0)
 
-        attn_out = self.attn(q, k, v)
-        C_local = attn_out.numel() // (B * N)  # C_local for parallel
-        attn_out = attn_out.view(B, N, C_local)
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        if self.causal:
+            mask_value = -torch.finfo(attn.dtype).max
+            i, j = attn.shape[-2:]
+            mask = torch.ones(i, j, device=q.device,
+                              dtype=torch.bool).triu(j - i + 1)
+            attn = attn.masked_fill(mask, mask_value)
+        if mask is not None:
+            mask_value = torch.finfo(attn.dtype).min
+            attn_mask = mask[:, None, None, :].expand(B, 1, N, N)
+            attn = attn.masked_fill(attn_mask, mask_value)
+        attn = attn.softmax(dim=-1)
+        attn = torch.nan_to_num(attn)
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
 
-        x, _ = self.proj(attn_out)
+        x, _ = self.proj(x)
 
         return x
 
