@@ -230,8 +230,8 @@ class DashengAttention(nn.Module):
             q,
             k,
             v,
-            attn_mask=mask[:, None, None, :] if mask is not None else None,
-            dropout_p=0.0,
+            attn_mask=mask[:, None, None, :].logical_not()
+            if mask is not None else None,
         )
         x = x.transpose(1, 2).reshape(B, N, C)
 
