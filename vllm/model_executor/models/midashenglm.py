@@ -217,21 +217,17 @@ class DashengAttention(nn.Module):
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
         B, N, C = x.shape
-
-        qkv, _ = self.qkv(x)
-        qkv = qkv.reshape(B, N, 3, self.num_heads, C // self.num_heads)
-        qkv = qkv.permute(2, 0, 3, 1, 4)
-        q, k, v = qkv.unbind(0)
-
+        q, k, v = (self.qkv(x)[0].reshape(B, N, 3, self.num_heads,
+                                          C // self.num_heads).permute(
+                                              2, 0, 3, 1, 4).unbind(0))
         x = scaled_dot_product_attention(
             q,
             k,
             v,
             attn_mask=mask[:, None, None, :] if mask is not None else None,
         )
-
         x = x.transpose(1, 2).reshape(B, N, C)
-        x, _ = self.proj(x)
+        x = self.proj(x)[0]
         return x
 
 
