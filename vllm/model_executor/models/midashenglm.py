@@ -169,7 +169,6 @@ class DashengAttention(nn.Module):
         dim: int,
         num_heads: int = 8,
         qkv_bias: bool = False,
-        causal: bool = False,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
     ):
@@ -209,7 +208,6 @@ class DashengAttention(nn.Module):
             quant_config=quant_config,
             prefix=f"{prefix}.proj",
         )
-        self.causal = causal
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
         B, N, C = x.shape
@@ -219,20 +217,23 @@ class DashengAttention(nn.Module):
         qkv = qkv.permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
 
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        if self.causal:
-            mask_value = -torch.finfo(attn.dtype).max
-            i, j = attn.shape[-2:]
-            mask = torch.ones(i, j, device=q.device,
-                              dtype=torch.bool).triu(j - i + 1)
-            attn = attn.masked_fill(mask, mask_value)
-        if mask is not None:
-            mask_value = torch.finfo(attn.dtype).min
-            attn_mask = mask[:, None, None, :].expand(B, 1, N, N)
-            attn = attn.masked_fill(attn_mask, mask_value)
-        attn = attn.softmax(dim=-1)
-        attn = torch.nan_to_num(attn)
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        # attn = (q @ k.transpose(-2, -1)) * self.scale
+        # if mask is not None:
+        #     mask_value = torch.finfo(attn.dtype).min
+        #     attn_mask = mask[:, None, None, :].expand(B, 1, N, N)
+        #     attn = attn.masked_fill(attn_mask, mask_value)
+        # attn = attn.softmax(dim=-1)
+        # attn = torch.nan_to_num(attn)
+        # x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        from torch.nn.functional import scaled_dot_product_attention
+        x = scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=mask[:, None, None, :] if mask is not None else None,
+            dropout_p=0.0,
+        )
+        x = x.transpose(1, 2).reshape(B, N, C)
 
         x, _ = self.proj(x)
 
